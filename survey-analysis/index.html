@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>居民调查加权分析台 · 虚构数据演示</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div>
+      <h1>居民调查加权分析台</h1>
+      <p class="subtitle">抽样框 → 基础权重 → 非响应调整 → 校准 → 截尾 → 区间估计　·　虚构数据演示　·　纯本地运行，不连接任何真实调查平台</p>
+    </div>
+    <div class="top-actions">
+      <button id="btn-theme" class="btn ghost" type="button">切换深浅色</button>
+      <button id="btn-method" class="btn ghost" type="button">方法说明</button>
+    </div>
+  </div>
+  <nav class="steps wrap" aria-label="流程导航">
+    <a href="#sec-import">1 数据导入</a>
+    <a href="#sec-check">2 数据核查</a>
+    <a href="#sec-weights">3 权重计算</a>
+    <a href="#sec-nonestimable">4 不可估计范围</a>
+    <a href="#sec-estimates">5 估计与区间</a>
+    <a href="#sec-drilldown">6 权重下钻</a>
+    <a href="#sec-export">7 导出</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+  <!-- 1 数据导入 -->
+  <section id="sec-import" class="card" aria-labelledby="h-import">
+    <h2 id="h-import"><span class="step-no">1</span>数据导入</h2>
+    <p class="muted">导入四份数据（CSV 或 JSON 数组）。所有数据仅在本机浏览器内处理，不上传、不连接任何外部平台。可先用「载入虚构示例数据」体验完整流程。</p>
+    <div class="dataset-grid" id="dataset-grid"></div>
+    <div class="row-actions">
+      <button id="btn-load-sample" class="btn primary" type="button">载入虚构示例数据</button>
+      <button id="btn-clear" class="btn ghost" type="button">清空全部</button>
+      <span id="import-status" class="muted" role="status"></span>
+    </div>
+  </section>
+
+  <!-- 2 数据核查 -->
+  <section id="sec-check" class="card" aria-labelledby="h-check">
+    <h2 id="h-check"><span class="step-no">2</span>数据核查</h2>
+    <div id="check-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="check-body" hidden>
+      <div class="control-row">
+        <label for="dup-rule">重复问卷处理规则</label>
+        <select id="dup-rule">
+          <option value="latest">保留最新提交（默认）</option>
+          <option value="earliest">保留最早提交</option>
+        </select>
+        <span class="muted">同一 person_id 多条回答按提交时间取舍，被剔除行在下方列明。</span>
+      </div>
+      <div id="check-list" class="check-list"></div>
+      <div class="table-pair">
+        <div id="dup-table-wrap"></div>
+        <div id="invalid-table-wrap"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 权重计算 -->
+  <section id="sec-weights" class="card" aria-labelledby="h-weights">
+    <h2 id="h-weights"><span class="step-no">3</span>权重计算</h2>
+    <div id="weights-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="weights-body" hidden>
+      <div class="control-row">
+        <label for="nr-group">非响应调整分组规则</label>
+        <select id="nr-group">
+          <option value="stratum">按层（区 × 年龄段，默认）</option>
+          <option value="district">仅按区</option>
+        </select>
+        <span class="muted">调整系数 = 组内抽中基础权重和 ÷ 组内回答基础权重和。</span>
+      </div>
+
+      <h3>基础权重（1 / 入样概率）</h3>
+      <div id="wstat-tiles" class="tile-row"></div>
+
+      <h3>非响应调整</h3>
+      <div id="nr-table-wrap"></div>
+      <figure class="chart-card">
+        <figcaption>各调整组回答率</figcaption>
+        <div id="chart-resprate"></div>
+        <p class="chart-note">单一系列条形图；数值见上表，悬停或键盘聚焦任一条形可查看。</p>
+      </figure>
+
+      <h3>校准（按层对齐人口总量）</h3>
+      <div id="cal-table-wrap"></div>
+
+      <h3>权重截尾</h3>
+      <div class="control-row">
+        <label><input type="checkbox" id="trim-enabled"> 启用权重截尾</label>
+        <label for="trim-cap">上限</label>
+        <input type="number" id="trim-cap" min="1" step="1" style="width:7em">
+        <button id="btn-apply-trim" class="btn ghost" type="button">应用</button>
+        <span class="muted">默认上限 = 1.25 × 校准后权重中位数；截尾后不再重新校准，差额在下表明示。</span>
+      </div>
+      <div id="trim-impact" class="tile-row"></div>
+      <figure class="chart-card">
+        <figcaption>权重分布（校准后 vs 截尾后）</figcaption>
+        <div id="chart-whist"></div>
+        <p class="chart-note">直方图；截尾未启用时仅显示校准后分布。逐记录数值见第 6 步下钻表。</p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 4 不可估计范围 -->
+  <section id="sec-nonestimable" class="card" aria-labelledby="h-nonest">
+    <h2 id="h-nonest"><span class="step-no">4</span>不可估计范围</h2>
+    <div id="nonest-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="nonest-body" hidden>
+      <p class="muted">以下范围<strong>不做</strong>硬估计：缺少入样概率的记录、整层无人回答的层。加权估计仅代表「可估计总体」，覆盖率如下。</p>
+      <div id="coverage-wrap"></div>
+      <div id="nonest-wrap"></div>
+    </div>
+  </section>
+
+  <!-- 5 估计与区间 -->
+  <section id="sec-estimates" class="card" aria-labelledby="h-est">
+    <h2 id="h-est"><span class="step-no">5</span>估计与区间</h2>
+    <div id="est-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="est-body" hidden>
+      <p class="muted">三列对照均基于同一可估计回答者集合：未加权（w=1）、加权（校准后权重）、截尾（截尾后权重）。比例为加权比率估计 Σw·y / Σw。</p>
+      <div class="control-row">
+        <label for="boot-seed">随机种子</label>
+        <input type="number" id="boot-seed" value="20261115" step="1" style="width:8em">
+        <label for="boot-b">重抽样次数 B</label>
+        <input type="number" id="boot-b" value="500" min="100" max="2000" step="100" style="width:6em">
+        <button id="btn-run-boot" class="btn primary" type="button">计算 95% 区间</button>
+        <span id="boot-status" class="muted" role="status"></span>
+      </div>
+      <details class="method-inline">
+        <summary>区间估计方法（重抽样，固定种子可复现）</summary>
+        <p>层内非参数 bootstrap：每次在各可估计层内对回答者<strong>有放回</strong>抽取与原层相同数量的记录；非响应调整系数沿用全样本值，<strong>校准系数与截尾在每次重抽样内重新计算</strong>；取 B 次估计的 2.5% 与 97.5% 百分位作为 95% 区间。随机数发生器为 mulberry32，种子固定（默认 20261115），同一种子结果完全可复现。局限：未含多阶段/整群设计效应；非响应调整假设组内随机缺失。</p>
+      </details>
+      <div id="est-table-wrap"></div>
+      <figure class="chart-card">
+        <figcaption>三列估计对照（含 95% 区间须先运行上方重抽样）</figcaption>
+        <div id="chart-estimates"></div>
+        <p class="chart-note">每个指标一个小图，避免不同量纲混排；数值与区间见上表。</p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 6 权重下钻 -->
+  <section id="sec-drilldown" class="card" aria-labelledby="h-drill">
+    <h2 id="h-drill"><span class="step-no">6</span>权重下钻</h2>
+    <div id="drill-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="drill-body" hidden>
+      <div class="control-row">
+        <label for="drill-search">按 person_id 搜索</label>
+        <input type="search" id="drill-search" placeholder="如 HB0859" style="width:12em">
+        <span class="muted">点击行首「＋」展开该记录每一步权重的来由。</span>
+      </div>
+      <div id="drill-table-wrap"></div>
+    </div>
+  </section>
+
+  <!-- 7 导出 -->
+  <section id="sec-export" class="card" aria-labelledby="h-export">
+    <h2 id="h-export"><span class="step-no">7</span>导出</h2>
+    <div id="export-empty" class="empty-note">请先完成第 1 步数据导入。</div>
+    <div id="export-body" hidden>
+      <div class="export-grid">
+        <button id="btn-exp-weights" class="btn ghost" type="button">权重明细 CSV<span class="btn-sub">每条抽中记录的完整权重链</span></button>
+        <button id="btn-exp-est" class="btn ghost" type="button">估计结果 CSV<span class="btn-sub">三列对照与区间（含种子）</span></button>
+        <button id="btn-exp-nonest" class="btn ghost" type="button">不可估计清单 CSV<span class="btn-sub">缺 π 记录与无回答层</span></button>
+        <button id="btn-exp-report" class="btn ghost" type="button">完整报告 JSON<span class="btn-sub">配置、权重、估计、区间、种子</span></button>
+        <button id="btn-exp-method" class="btn ghost" type="button">方法说明 Markdown<span class="btn-sub">公式、假设与可复现性</span></button>
+      </div>
+      <p id="export-status" class="muted" role="status"></p>
+    </div>
+  </section>
+
+  <footer class="page-foot">
+    <p>本页面全部数据为虚构示例，仅用于演示调查加权流程；不代表任何真实地区与居民。所有计算在本地浏览器完成。</p>
+  </footer>
+</main>
+
+<!-- 方法说明弹层 -->
+<div id="method-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="method-title">
+  <div class="modal-body">
+    <div class="modal-head">
+      <h2 id="method-title">方法说明</h2>
+      <button id="btn-method-close" class="btn ghost" type="button">关闭</button>
+    </div>
+    <div id="method-content"></div>
+  </div>
+</div>
+
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script src="js/weights.js"></script>
+<script src="js/sample-data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
